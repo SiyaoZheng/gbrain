@@ -371,6 +371,7 @@ function inferType(filePath?: string): PageType {
   if (lower.includes('/cal/') || lower.includes('/calendar/')) return 'calendar-event';
   if (lower.includes('/notes/') || lower.includes('/note/')) return 'note';
   if (lower.includes('/meetings/') || lower.includes('/meeting/')) return 'meeting';
+  if (lower.includes('/papers/') || lower.includes('/paper/')) return 'paper';
   return 'concept';
 }
 

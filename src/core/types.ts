@@ -10,7 +10,7 @@
 // embedding_image vector(1024). Bytes never enter the DB; the brain repo
 // holds the file and `files.storage_path` references it.
 // `synthesis` (v0.28): think-generated provenance pages.
-export type PageType = 'person' | 'company' | 'deal' | 'yc' | 'civic' | 'project' | 'concept' | 'source' | 'media' | 'writing' | 'analysis' | 'guide' | 'hardware' | 'architecture' | 'meeting' | 'note' | 'email' | 'slack' | 'calendar-event' | 'code' | 'image' | 'synthesis';
+export type PageType = 'person' | 'company' | 'deal' | 'yc' | 'civic' | 'project' | 'concept' | 'source' | 'media' | 'writing' | 'analysis' | 'guide' | 'hardware' | 'architecture' | 'meeting' | 'note' | 'email' | 'slack' | 'calendar-event' | 'code' | 'image' | 'synthesis' | 'paper';
 
 /**
  * Canonical list of every PageType value. Kept in sync with the union above.
@@ -23,7 +23,7 @@ export const ALL_PAGE_TYPES: readonly PageType[] = [
   'person', 'company', 'deal', 'yc', 'civic', 'project', 'concept',
   'source', 'media', 'writing', 'analysis', 'guide', 'hardware',
   'architecture', 'meeting', 'note', 'email', 'slack', 'calendar-event',
-  'code', 'image', 'synthesis',
+  'code', 'image', 'synthesis', 'paper',
 ] as const;
 
 /**
