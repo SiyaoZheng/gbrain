@@ -500,12 +500,10 @@ async function performSyncInner(engine: BrainEngine, opts: SyncOpts): Promise<Sy
     renamed: manifest.renamed.filter(r => isSyncable(r.to, syncOpts)),
   };
 
-  // Delete pages that became un-syncable (modified but filtered out).
-  // v0.20.0 Cathedral II SP-5: resolveSlugForPath picks the right slug shape
-  // (markdown vs code) based on the chunker's classifier, so a Rust file that
-  // became un-syncable (e.g., moved under `.gitignore` or filtered by
-  // strategy=markdown) deletes the actual code-slug page, not a ghost
-  // markdown-slug that never existed.
+  // Files that were modified but no longer pass isSyncable() are SKIPPED,
+  // NOT deleted. Only a real git `D` (deleted file) triggers tombstone
+  // deletion. Filtering rules can change; silently deleting DB pages when
+  // they do would be data loss.
   const unsyncableModified = manifest.modified.filter(p => !isSyncable(p, syncOpts));
   // v0.18.0+ multi-source: scope getPage + deletePage to opts.sourceId so
   // unsyncable cleanup in source A doesn't accidentally sweep same-slug
@@ -513,13 +511,10 @@ async function performSyncInner(engine: BrainEngine, opts: SyncOpts): Promise<Sy
   const pageOpts = opts.sourceId ? { sourceId: opts.sourceId } : undefined;
   for (const path of unsyncableModified) {
     const slug = resolveSlugForPath(path);
-    try {
-      const existing = await engine.getPage(slug, pageOpts);
-      if (existing) {
-        await engine.deletePage(slug, pageOpts);
-        console.log(`  Deleted un-syncable page: ${slug}`);
-      }
-    } catch { /* ignore */ }
+    const existing = await engine.getPage(slug);
+    if (existing) {
+      console.log(`  [WARN] ${path} → ${slug}: modified but no longer syncable (skipped, NOT deleted)`);
+    }
   }
 
   const totalChanges = filtered.added.length + filtered.modified.length +
