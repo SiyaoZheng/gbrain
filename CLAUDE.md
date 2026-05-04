@@ -309,21 +309,28 @@ Key files:
 
 ## Commands
 
-Run `gbrain --help` or `gbrain --tools-json` for full command reference.
+Quick reference for the most-used commands:
 
-Key commands added in v0.7:
-- `gbrain init` — defaults to PGLite (no Supabase needed), scans repo size, suggests Supabase for 1000+ files
-- `gbrain migrate --to supabase` / `gbrain migrate --to pglite` — bidirectional engine migration
+- `gbrain init` — Initialize a brain (defaults to PGLite)
+- `gbrain sync [--skip-failed] [--retry-failed] [--workers N]` — Sync markdown files into the brain
+- `gbrain doctor [--json] [--fast] [--fix] [--dry-run]` — Health checks
+- `gbrain embed [--stale|--all] [--slugs ...]` — Generate embeddings
+- `gbrain extract links|timeline|all [--source fs|db]` — Batch link/timeline extraction
+- `gbrain graph-query <slug> [--type T] [--depth N] [--direction in|out|both]` — Relationship traversal
+- `gbrain dream [--dir P] [--dry-run] [--phase N] [--input F] [--date D]` — Run maintenance cycle
+- `gbrain agent run <prompt> [--follow]` — Submit a subagent job
+- `gbrain jobs submit <name> [--params JSON] [--follow]` — Submit a background job
+- `gbrain jobs list/get/cancel/retry/delete/prune/stats` — Job management
+- `gbrain jobs work [--queue Q] [--concurrency N]` — Start worker daemon (Postgres only)
+- `gbrain migrate --to postgres` — Migrate PGLite → Postgres (RDS/Supabase/self-hosted)
+- `gbrain serve --http` — HTTP transport (Postgres-only)
+- `gbrain auth create/list/revoke/test` — Token management for HTTP transport
+- `gbrain skillify scaffold <name>` — Create skill stubs
+- `gbrain skillpack install` — Install curated skill bundle into host workspace
+- `gbrain claw-test [--scenario N] [--live --agent openclaw]` — End-to-end friction harness
+- `gbrain friction log|render|list|summary` — Friction/delight reporter
 
-Key commands added for Minions (job queue):
-- `gbrain jobs submit <name> [--params JSON] [--follow] [--dry-run]` — submit a background job. v0.13.1 adds first-class flags for every `MinionJobInput` tuning knob: `--max-stalled N`, `--backoff-type fixed|exponential`, `--backoff-delay Nms`, `--backoff-jitter 0..1`, `--timeout-ms N`, `--idempotency-key K`.
-- `gbrain jobs list [--status S] [--queue Q]` — list jobs with filters
-- `gbrain jobs get <id>` — job details with attempt history
-- `gbrain jobs cancel/retry/delete <id>` — manage job lifecycle
-- `gbrain jobs prune [--older-than 30d]` — clean old completed/dead jobs
-- `gbrain jobs stats` — job health dashboard
-- `gbrain jobs smoke [--sigkill-rescue]` — health smoke test. `--sigkill-rescue` is the v0.13.1 regression guard for #219: simulates a killed worker and asserts the stalled job is requeued instead of dead-lettered on first stall.
-- `gbrain jobs work [--queue Q] [--concurrency N]` — start worker daemon (Postgres only)
+Run `gbrain --help` for full reference.
 
 Key commands added in v0.28.1 (LongMemEval in the box):
 - `gbrain eval longmemeval <dataset.jsonl>` — run the public LongMemEval benchmark against gbrain hybrid retrieval. Flags: `--limit N`, `--model M`, `--retrieval-only`, `--keyword-only`, `--expansion`, `--top-k K`, `--output FILE`. One in-memory PGLite per benchmark run; `TRUNCATE` between questions over runtime-enumerated `pg_tables` (schema-migration-safe); `~/.gbrain` never opened. `--expansion` defaults OFF (deterministic, no per-query Haiku). Default model resolves through `resolveModel()` 6-tier chain with new `models.eval.longmemeval` config key. `gbrain eval longmemeval --help` works without a configured brain (hermeticity gate).
@@ -355,16 +362,12 @@ Key commands added in v0.25.0:
 Key commands added in v0.12.2:
 - `gbrain repair-jsonb [--dry-run] [--json]` — repair double-encoded JSONB rows left over from v0.12.0-and-earlier Postgres writes. Idempotent; PGLite no-ops. The `v0_12_2` migration runs this automatically on `gbrain upgrade`.
 
-Key commands added in v0.12.3:
-- `gbrain orphans [--json] [--count] [--include-pseudo]` — surface pages with zero inbound wikilinks, grouped by domain. Auto-generated/raw/pseudo pages filtered by default. Also exposed as `find_orphans` MCP operation. The natural consumer of the v0.12.0 knowledge graph layer: once edges are captured, find the gaps.
-- `gbrain doctor` gains two new reliability detection checks: `jsonb_integrity` (v0.12.0 Postgres double-encode damage) and `markdown_body_completeness` (pages truncated by the old splitBody bug). Detection only; fix hints point at `gbrain repair-jsonb` and `gbrain sync --force`.
+Skills live in `skills/`, organized by `skills/RESOLVER.md` (also accepts `AGENTS.md`).
+Key skills: ingest, query, maintain, enrich, briefing, migrate, setup, publish,
+signal-detector, brain-ops, meeting-ingestion, minion-orchestrator, and more.
+Cross-cutting conventions in `skills/conventions/`.
 
-Key commands added in v0.14.2:
-- `gbrain sync --skip-failed` — acknowledge the current set of failed-parse files recorded in `~/.gbrain/sync-failures.jsonl` so the sync bookmark advances past them. Doctor's `sync_failures` check shows previously-skipped as "all acknowledged" instead of warning.
-- `gbrain sync --retry-failed` — re-walk the unacknowledged failures and re-attempt parsing. If the files now succeed, they clear from the set and the bookmark advances naturally.
-- `gbrain apply-migrations --force-retry <version>` — reset a wedged migration (3 consecutive partials with no completion) by appending a `'retry'` marker. Next `apply-migrations --yes` treats the version as fresh. `complete` status never regresses to `partial` either before or after a retry marker.
-- `GBRAIN_POOL_SIZE` env var — honored by both the singleton pool (`src/core/db.ts`) and the parallel-import worker pool (`src/commands/import.ts`). Default is 10; lower to 2 for Supabase transaction pooler to avoid MaxClients crashes during `gbrain upgrade` subprocess spawns. Read at call time via `resolvePoolSize()`.
-- `gbrain doctor` gains two new checks: `sync_failures` (surfaces unacknowledged parse failures with exact paths + fix hints) and `brain_score` (renders the 5-component breakdown when score < 100: embed coverage / 35, link density / 25, timeline coverage / 15, orphans / 15, dead links / 10 — sum equals total).
+## Skill routing
 
 Key commands added in v0.26.0 (OAuth 2.1 + HTTP server + admin dashboard):
 - `gbrain serve --http [--port 3131] [--token-ttl 3600] [--enable-dcr] [--log-full-params]` — HTTP MCP server with OAuth 2.1, admin dashboard at `/admin`, SSE activity feed at `/admin/events`, health check at `/health`. Prints admin bootstrap token on first start. Alongside (not replacing) stdio `gbrain serve`. As of v0.26.9, `mcp_request_log.params` and the SSE feed default to a redacted summary (`{redacted, kind, declared_keys, unknown_key_count, approx_bytes}`); pass `--log-full-params` to log raw payloads on a personal laptop with a startup warning.
@@ -381,19 +384,11 @@ Key commands added in v0.14.3 (fix wave):
 - `gbrain jobs submit` gains `--max-stalled`, `--backoff-type`, `--backoff-delay`, `--backoff-jitter`, `--timeout-ms`, `--idempotency-key` — exposing existing `MinionJobInput` fields as first-class CLI flags.
 - `gbrain jobs smoke --sigkill-rescue` — opt-in regression smoke case simulating a killed worker; asserts the v0.14.3 schema default (`max_stalled=5`) actually rescues on first stall.
 
-Key commands added in v0.22.13 (PR #490):
-- `gbrain sync --workers N` (alias `--concurrency N`) — parallelize the import phase using per-worker Postgres engines (small pool of 2 each) with an atomic queue index. Auto-concurrency: defaults to 4 workers when the diff exceeds 100 files. Smaller diffs stay serial. Explicit `--workers` always wins (even on a 30-file diff). PGLite forces serial regardless. Validation rejects `0`, negatives, non-integers loud (replaces the prior silent fall-through to auto-concurrency).
-- `gbrain import --workers N` — same `parseWorkers()` validation as sync; same try/finally worker-engine cleanup. Behavior surface unchanged.
+## Build
 
-Key commands added in v0.22.16 (claw-test friction loop):
-- `gbrain claw-test [--scenario fresh-install|upgrade-from-v0.18] [--keep-tempdir]` — scripted-mode CI gate that runs the full canonical first-day flow against a fresh tempdir. Asserts every expected `--progress-json` phase fired and doctor's `status === 'ok'`. ~30s, no API keys.
-- `gbrain claw-test --live --agent openclaw` — friction-discovery mode. Spawns real openclaw, hands it `BRIEF.md`, captures stdin/stdout/stderr to `<run>/transcript.jsonl`, lets the agent log friction via the friction CLI. Run on demand; ~5–10 min and ~$1–2 in tokens.
-- `gbrain claw-test --list-agents` — reports which agent runners are registered + their detection state (binary path or unavailable reason).
-- `gbrain friction log --severity {confused|error|blocker|nit} --phase <name> --message <text> [--hint ...] [--kind {friction|delight}] [--run-id ...]` — append a friction or delight entry to the active run JSONL.
-- `gbrain friction render --run-id <id> [--json] [--transcripts] [--no-redact]` — markdown report grouped by severity + phase; `--redact` is the default for md output (strips `$HOME`/`$CWD` placeholders so reports paste safely in PRs/issues).
-- `gbrain friction list [--json]` — recent run-ids with friction/delight counts; interrupted runs marked `(interrupted)`.
-- `gbrain friction summary --run-id <id> [--json]` — two-column friction + delight summary.
-- `GBRAIN_HOME` env override is now honored uniformly across every gbrain write site (config, audit, friction, sync-failures, import checkpoint, integrity log, integrations heartbeat, migration rollback, etc.) — `gbrainPath(...)` from `src/core/config.ts` is the canonical helper. Read-side host-fingerprint detection (`~/.claude`/`~/.openclaw` etc.) intentionally NOT confined in v1; that's a v1.1 follow-up.
+```bash
+bun build --compile --outfile bin/gbrain src/cli.ts
+```
 
 ## Testing
 
@@ -613,34 +608,29 @@ E2E tests (`test/e2e/`): Run against real Postgres+pgvector. Require `DATABASE_U
   tests, instant teardown) and the gate value is high. Skipping with "DATABASE_URL
   unset" is silent regression, not caution.
 
-### API keys and running ALL tests
-
-ALWAYS source the user's shell profile before running tests:
+Always source the user's shell profile before running tests:
 
 ```bash
 source ~/.zshrc 2>/dev/null || true
 ```
 
-This loads `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`. Without these, Tier 2 tests
-skip silently. Do NOT skip Tier 2 tests just because they require API keys — load
-the keys and run them.
+This loads `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`. Without these, Tier 2 tests skip silently.
 
-When asked to "run all E2E tests" or "run tests", that means ALL tiers:
-- Tier 1: `bun run test:e2e` (mechanical, sync, upgrade — no API keys needed)
-- Tier 2: `test/e2e/skills.test.ts` (requires OpenAI + Anthropic + openclaw CLI)
-- Always spin up the test DB, source zshrc, run everything, tear down.
+### Embedding config
 
-### E2E test DB lifecycle (ALWAYS follow this)
+Local llama-server (Qwen3-Embedding-0.6B Q4_K_M, 1024d) — no cloud API needed.
 
 You are responsible for spinning up and tearing down the test Postgres container.
 Do not leave containers running after tests. Do not skip E2E tests, do not ask
 permission to run them — see the "run without asking" rule above.
 
-1. **Check for `.env.testing`** — if missing, copy from sibling worktree.
-   Read it to get the DATABASE_URL (it has the port number).
+`embedding.ts` reads `GBRAIN_EMBEDDING_BASE_URL` (default `http://localhost:8080/v1`) and `GBRAIN_EMBEDDING_API_KEY` (default `local`). No cloud dependency.
+
+### E2E test DB lifecycle
+
+1. **Check for `.env.testing`** — if missing, copy from a sibling worktree. Read it to get the DATABASE_URL (it has the port number).
 2. **Check if the port is free:**
-   `docker ps --filter "publish=PORT"` — if another container is on that port,
-   pick a different port (try 5435, 5436, 5437) and start on that one instead.
+   `docker ps --filter "publish=PORT"` — if another container is on that port, pick a different one (try 5435, 5436, 5437).
 3. **Start the test DB:**
    ```bash
    docker run -d --name gbrain-test-pg \
