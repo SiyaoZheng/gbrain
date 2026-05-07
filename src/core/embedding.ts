@@ -37,7 +37,6 @@ export interface EmbedBatchOptions {
  * adaptive batch splitting and per-recipe token-budget logic; this paginator
  * is purely about progress-callback granularity.
  */
-const BATCH_SIZE = 100;
 export async function embedBatch(
   texts: string[],
   options: EmbedBatchOptions = {},
