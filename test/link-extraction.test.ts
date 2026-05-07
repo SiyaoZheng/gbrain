@@ -654,6 +654,89 @@ describe('extractFrontmatterLinks — field-map coverage', () => {
     );
     expect(candidates).toHaveLength(0);
   });
+
+  // ─── Paper page authorship (splitCsv) ────────────────────────
+  // Wanfang/arxiv importers write `authors: 'A, B, C'` as a single CSV
+  // string. The splitCsv flag on the paper authors mapping must split
+  // these into one edge per author.
+  test('paper.authors single string → one authored_by edge', async () => {
+    const paperPages = {
+      'people/yang-xuedong': 'people/yang-xuedong',
+      'papers/p1': 'papers/p1',
+    };
+    const r = makeFixtureResolver(paperPages);
+    const { candidates } = await extractFrontmatterLinks(
+      'papers/p1', 'paper' as never, { authors: 'Yang Xuedong' }, r,
+    );
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      fromSlug: 'papers/p1',
+      targetSlug: 'people/yang-xuedong',
+      linkType: 'authored_by',
+      linkSource: 'frontmatter',
+      originField: 'authors',
+    });
+  });
+
+  test('paper.authors CSV string → one edge per author, trimmed', async () => {
+    const paperPages = {
+      'people/alice': 'people/alice',
+      'people/bob': 'people/bob',
+      'people/carol': 'people/carol',
+      'papers/p1': 'papers/p1',
+    };
+    const r = makeFixtureResolver(paperPages);
+    const { candidates, unresolved } = await extractFrontmatterLinks(
+      'papers/p1', 'paper' as never, { authors: 'Alice,  Bob , Carol' }, r,
+    );
+    expect(candidates).toHaveLength(3);
+    expect(unresolved).toHaveLength(0);
+    const targets = candidates.map(c => c.targetSlug).sort();
+    expect(targets).toEqual(['people/alice', 'people/bob', 'people/carol']);
+    for (const c of candidates) {
+      expect(c.linkType).toBe('authored_by');
+      expect(c.fromSlug).toBe('papers/p1');
+    }
+  });
+
+  test('paper.corresponding_author → corresponding_author_of edge', async () => {
+    const paperPages = {
+      'people/alice': 'people/alice',
+      'papers/p1': 'papers/p1',
+    };
+    const r = makeFixtureResolver(paperPages);
+    const { candidates } = await extractFrontmatterLinks(
+      'papers/p1', 'paper' as never, { corresponding_author: 'Alice' }, r,
+    );
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].linkType).toBe('corresponding_author_of');
+    expect(candidates[0].targetSlug).toBe('people/alice');
+  });
+
+  test('paper.authors splits Chinese CSV — unresolved names reported, not stubbed', async () => {
+    // Mirrors the Wanfang shape: `'R.A.W.罗茨, 杨雪冬'` — two authors, only
+    // one exists in the brain. The other goes to unresolved (NOT auto-created).
+    const paperPages = {
+      'people/杨雪冬': 'people/杨雪冬',
+      'papers/p1': 'papers/p1',
+    };
+    const r = makeFixtureResolver(paperPages);
+    const { candidates, unresolved } = await extractFrontmatterLinks(
+      'papers/p1', 'paper' as never, { authors: 'R.A.W.罗茨, 杨雪冬' }, r,
+    );
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].targetSlug).toBe('people/杨雪冬');
+    expect(unresolved).toHaveLength(1);
+    expect(unresolved[0]).toEqual({ field: 'authors', name: 'R.A.W.罗茨' });
+  });
+
+  test('paper authorship mapping does NOT fire on non-paper pages', async () => {
+    const r = makeFixtureResolver({ 'people/alice': 'people/alice' });
+    const { candidates } = await extractFrontmatterLinks(
+      'people/alice', 'person' as never, { authors: 'Alice' }, r,
+    );
+    expect(candidates).toHaveLength(0);
+  });
 });
 
 describe('makeResolver — fallback chain', () => {

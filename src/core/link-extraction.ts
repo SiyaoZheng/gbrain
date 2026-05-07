@@ -599,6 +599,13 @@ export interface FrontmatterFieldMapping {
    * array; resolver tries each. E.g. investors → ['companies', 'funds', 'people'].
    */
   dirHint: string | string[];
+  /**
+   * Split string values on `,` into multiple entries. Use for fields that
+   * may carry several names in a single CSV-in-string (e.g. Wanfang paper
+   * `authors: 'A, B, C'`). Array values still pass through one-per-entry;
+   * each array element that is itself a string also gets split.
+   */
+  splitCsv?: boolean;
 }
 
 /**
@@ -625,6 +632,11 @@ export const FRONTMATTER_LINK_MAP: FrontmatterFieldMapping[] = [
     dirHint: ['companies', 'funds', 'people'] },
   // Meeting pages
   { fields: ['attendees'], pageType: 'meeting', type: 'attended', direction: 'incoming', dirHint: 'people' },
+  // Paper pages → people (Wanfang/arxiv etc. write `authors: 'A, B, C'` as CSV-in-string)
+  { fields: ['authors', 'author'], pageType: 'paper', type: 'authored_by',
+    direction: 'outgoing', dirHint: 'people', splitCsv: true },
+  { fields: ['corresponding_author'], pageType: 'paper', type: 'corresponding_author_of',
+    direction: 'outgoing', dirHint: 'people', splitCsv: true },
   // Any page type
   { fields: ['sources'], type: 'discussed_in', direction: 'incoming', dirHint: ['source', 'media'] },
   { fields: ['source'], type: 'source', direction: 'outgoing', dirHint: '' /* already slug-shaped */ },
@@ -772,7 +784,17 @@ export async function extractFrontmatterLinks(
     for (const field of mapping.fields) {
       const value = frontmatter[field];
       if (value == null) continue;
-      const entries = Array.isArray(value) ? value : [value];
+      let entries: unknown[] = Array.isArray(value) ? value : [value];
+      if (mapping.splitCsv) {
+        // Wanfang/arxiv style: `authors: 'A, B, C'`. Split on `,` and trim.
+        // Array entries that are themselves strings also get split, so
+        // mixed-shape data (`['A', 'B, C']`) is handled too.
+        entries = entries.flatMap(e =>
+          typeof e === 'string'
+            ? e.split(',').map(s => s.trim()).filter(Boolean)
+            : [e]
+        );
+      }
 
       for (const entry of entries) {
         // Extract the name to resolve. Strings pass through; objects use
